@@ -13,11 +13,11 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     MainWindow::s_textEdit = this->get_logwindow();
-    connect(this->ui->actionjson, SIGNAL(triggered()), this, SLOT(on_save_json()));
-    connect(this->ui->actionSettings, SIGNAL(triggered()), this, SLOT(on_settings()));
-    connect(this->ui->actionimport, SIGNAL(triggered()), this, SLOT(on_import_params()));
-    connect(this->ui->actionexport, SIGNAL(triggered()), this, SLOT(on_export_params()));
-    connect(this->ui->actionclear_all, SIGNAL(triggered()), this, SLOT(on_clear_all()));
+    connect(this->ui->actionjson, &QAction::triggered, this, &MainWindow::on_actionjson_triggered);
+    connect(this->ui->actionSettings, &QAction::triggered, this, &MainWindow::on_actionSettings_triggered);
+    connect(this->ui->actionimport, &QAction::triggered, this, &MainWindow::on_actionimport_triggered);
+    connect(this->ui->actionexport, &QAction::triggered, this, &MainWindow::on_actionexport_triggered);
+    connect(this->ui->actionclear_all, &QAction::triggered, this, &MainWindow::on_actionclear_all_triggered);
     qSolverJob = new QSolverJob;
     qSolverJob->setContext(this->getLogArea());
     qSolverJob->current_mission = QSolverJob::MissionType::LOADING;
@@ -80,7 +80,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::on_save_json(){
+void MainWindow::on_actionjson_triggered(){
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"),
                                "output_strategy.json",
                                tr("Json file (*.json)"));
@@ -98,7 +98,7 @@ QString getParams(QString input,QString key){
     }
 }
 
-void MainWindow::on_clear_all(){
+void MainWindow::on_actionclear_all_triggered(){
     this->clear_all_params();
     this->ui->IpRangeTableView->update();
     this->ui->oopRangeTableView->update();
@@ -265,7 +265,7 @@ void MainWindow::import_from_file(QString fileName){
     this->update();
 }
 
-void MainWindow::on_import_params(){
+void MainWindow::on_actionimport_triggered(){
     QString fileName =  QFileDialog::getOpenFileName(
               this,
               tr("Open parameters file"),
@@ -278,7 +278,7 @@ void MainWindow::on_import_params(){
     this->ui->oopRangeTableView->setFocus();
 }
 
-void MainWindow::on_export_params(){
+void MainWindow::on_actionexport_triggered(){
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Parameters"),
                                "parameters/output_parameters.txt",
                                tr("Text file (*.txt)"));
@@ -361,7 +361,7 @@ void MainWindow::on_export_params(){
     out << "\n";
     out << "set_max_iteration " << this->ui->iterationText->text().trimmed();
     out << "\n";
-    out << "set_print_interval" << this->ui->logIntervalText->text().trimmed();
+    out << "set_print_interval " << this->ui->logIntervalText->text().trimmed();
     out << "\n";
     if(this->ui->useIsoCheck->isChecked()){
         out << "set_use_isomorphism 1" << "\n";
@@ -400,7 +400,7 @@ void MainWindow::on_export_params(){
     msgBox.exec();
 }
 
-void MainWindow::on_settings(){
+void MainWindow::on_actionSettings_triggered(){
     this->settingEditor = new SettingEditor(this);
     settingEditor->setAttribute(Qt::WA_DeleteOnClose);
     settingEditor->show();
@@ -473,6 +473,7 @@ void MainWindow::on_buildTreeButtom_clicked()
     qSolverJob->mode = this->ui->mode_box->currentIndex() == 0 ? QSolverJob::Mode::HOLDEM:QSolverJob::Mode::SHORTDECK;
     qSolverJob->allin_threshold = this->ui->allinThresholdText->text().toFloat();
     qSolverJob->use_isomorphism = this->ui->useIsoCheck->isChecked();
+    qSolverJob->use_halffloats =  this->ui->useHalfFloats_box->currentIndex();
 
     StreetSetting gbs_flop_ip = StreetSetting(sizes_convert(ui->flop_ip_bet->text()),
                                               sizes_convert(ui->flop_ip_raise->text()),
@@ -589,15 +590,27 @@ void MainWindow::on_estimateMemoryButtom_clicked()
     if(this->ui->useIsoCheck->isChecked()){
         corh =iso_corh(this->ui->boardText->toPlainText());
     }
+    switch(this->ui->useHalfFloats_box->currentIndex()){
+    case 0:
+        break;
+    case 1:
+        corh *= 0.75;
+        break;
+    case 2:
+        corh *= 0.5;
+        break;
+    }
     float memory_mb = (float)memory_float / 1024 / 1024 * corh * 4 ;
     float memory_gb = (float)memory_float / 1024 / 1024 / 1024 * corh * 4;
     QString message;
     if(memory_gb == 0){
         message = tr("Please build tree first.");
     }else if(memory_gb < 1){
-        message = tr("Estimated Memory Usage: ") + QString::number(memory_mb,'f',1) + tr(" Mb");
+        message = tr("Estimated Memory Usage: ") + QString::number(memory_mb,'f',0) + tr(" Mb") +
+                tr("\nRebuild tree to have changed optimization options take effect!");
     }else{
-        message = tr("Estimated Memory Usage: ") + QString::number(memory_gb,'f',2) + tr(" Gb");
+        message = tr("Estimated Memory Usage: ") + QString::number(memory_gb,'f',1) + tr(" Gb") +
+                tr("\nRebuild tree to have changed optimization options take effect!");
     }
     qDebug().noquote() << message;
     QMessageBox msgBox;
@@ -633,7 +646,7 @@ void MainWindow::item_clicked(const QModelIndex& index){
 
 void MainWindow::on_exportCurrentParameterButton_clicked()
 {
-    this->on_export_params();
+    this->on_actionexport_triggered();
 }
 
 void MainWindow::on_ipRangeText_textChanged()
